@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: functionize
+      POSTGRES_USER: functionize
+      POSTGRES_PASSWORD: functionize
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U functionize"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - functionize-data:/var/lib/postgresql/data
+
+volumes:
+  functionize-data:
+
