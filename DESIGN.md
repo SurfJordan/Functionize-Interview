@@ -27,6 +27,8 @@ I cut authentication, deployment, metrics infrastructure, caches, a bulk HTTP AP
 
 ## AI use
 
-I used Codex to inspect the dataset, challenge architecture choices, draft code and tests, and iterate against compiler/test feedback; I retained the deterministic policy and reviewed the generated boundaries and failure paths. Repository `AGENTS.md` files and two local skills make that workflow reproducible.
+I used Codex to inspect the dataset, challenge architecture choices, draft code and tests, and iterate against compiler/test feedback; I retained the deterministic policy and reviewed the generated boundaries and failure paths. Repository `AGENTS.md` files and local skills make that workflow reproducible.
 
-No model runs in the service. A future asynchronous enrichment stage could use pretrained embeddings or an LLM to cluster error messages and suggest runner, network, or application causes. It should not block ingestion or replace the auditable health classifier. This uses existing models rather than training a new one from scratch.
+No model runs in the service. The classification strategy deliberately combines explicit heuristics with statistical confidence: its inputs are structured, its result must be reproducible, and the supplied data has no ground-truth health labels with which to train or objectively evaluate a model. Putting an LLM on the synchronous path would add latency, cost, nondeterminism, and another failure dependency without evidence that it improves the health label.
+
+A future asynchronous enrichment stage could use pretrained embeddings or an LLM to cluster error messages and suggest runner, network, or application causes. With labelled incident and customer-feedback data, I would compare that model against the deterministic baseline for precision, recall, calibration, latency, and cost, first in shadow mode. It should influence customer-visible decisions only after demonstrating an improvement, never block ingestion, and retain the deterministic classifier as an auditable fallback. This uses existing models rather than training one from scratch.
