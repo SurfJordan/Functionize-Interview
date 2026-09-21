@@ -8,8 +8,12 @@ public final class EventValidator {
     private static final int MAX_ERROR_LENGTH = 16 * 1024;
 
     public List<String> validate(ExecutionEvent event) {
+        if (event == null) {
+            return List.of("request body must contain an event");
+        }
+
         var errors = new ArrayList<String>();
-        validateIdentifier("test_id", event.testId(), errors);
+        validateTestId(event.testId(), errors);
         validateIdentifier("run_id", event.runId(), errors);
         if (event.status() == null) {
             errors.add("status is required");
@@ -28,6 +32,13 @@ public final class EventValidator {
         return List.copyOf(errors);
     }
 
+    private static void validateTestId(String value, List<String> errors) {
+        validateIdentifier("test_id", value, errors);
+        if (value != null && value.contains("/")) {
+            errors.add("test_id must not contain '/'");
+        }
+    }
+
     private static void validateIdentifier(String field, String value, List<String> errors) {
         if (value == null || value.isBlank()) {
             errors.add(field + " is required");
@@ -36,4 +47,3 @@ public final class EventValidator {
         }
     }
 }
-

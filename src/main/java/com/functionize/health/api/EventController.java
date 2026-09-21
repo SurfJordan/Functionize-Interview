@@ -30,7 +30,9 @@ public final class EventController {
 
     public void register(RoutesConfig routes) {
         routes.post("/events", context -> {
-            var event = context.bodyAsClass(ExecutionEvent.class);
+            ExecutionEvent event = context.body().trim().equals("null")
+                    ? null
+                    : context.bodyAsClass(ExecutionEvent.class);
             var result = service.ingest(event);
             var status = result == IngestResult.CREATED ? 201 : 200;
             context.status(status)
@@ -94,4 +96,3 @@ public final class EventController {
 
     private record ErrorResponse(String code, String message, List<String> details) {}
 }
-

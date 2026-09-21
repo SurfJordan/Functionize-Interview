@@ -136,6 +136,26 @@ class HttpServerTest {
     }
 
     @Test
+    void rejectsNullEventBodiesAsValidationErrors() throws Exception {
+        var response = post("null");
+
+        assertEquals(400, response.statusCode());
+        assertTrue(response.body().contains("\"code\":\"validation_error\""), response.body());
+        assertTrue(response.body().contains("request body must contain an event"), response.body());
+    }
+
+    @Test
+    void rejectsTestIdsThatCannotRoundTripThroughTheClassificationRoute() throws Exception {
+        var event = eventJson("run-path-separator", "passed", 100).replace("example", "folder/test");
+
+        var response = post(event);
+
+        assertEquals(400, response.statusCode());
+        assertTrue(response.body().contains("\"code\":\"validation_error\""), response.body());
+        assertTrue(response.body().contains("test_id must not contain '/'"), response.body());
+    }
+
+    @Test
     void returnsStructuredNotFoundResponse() throws Exception {
         var response = get("/tests/unknown");
 
