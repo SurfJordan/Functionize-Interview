@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -93,6 +94,36 @@ class PostgresEventRepositoryTest {
                     attempts - 1,
                     results.stream().filter(result -> result == EventRepository.InsertResult.IDENTICAL).count());
         }
+    }
+
+    @Test
+    void resolvesConcurrentConflictingRetriesWithoutTransientErrors() throws Exception {
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+        var first = event("test-a", "conflicting-run", Status.PASSED, "2026-01-01T00:00:00Z");
+        var second = event("test-a", "conflicting-run", Status.FAILED, "2026-01-01T00:00:00Z");
+
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var futures = List.of(
+                    executor.submit(() -> insertWhenReleased(first, ready, start)),
+                    executor.submit(() -> insertWhenReleased(second, ready, start)));
+
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+            var results = futures.stream().map(future -> get(future, 10, TimeUnit.SECONDS)).toList();
+
+            assertEquals(1, results.stream().filter(result -> result == EventRepository.InsertResult.CREATED).count());
+            assertEquals(1, results.stream().filter(result -> result == EventRepository.InsertResult.CONFLICT).count());
+        }
+    }
+
+    private EventRepository.InsertResult insertWhenReleased(
+            ExecutionEvent event, CountDownLatch ready, CountDownLatch start) throws InterruptedException {
+        ready.countDown();
+        if (!start.await(5, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Concurrent insert start timed out");
+        }
+        return repository.insert(event);
     }
 
     private static <T> T get(Future<T> future, long timeout, TimeUnit unit) {

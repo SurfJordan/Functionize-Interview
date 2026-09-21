@@ -37,6 +37,9 @@ public final class EventValidator {
         if (value != null && value.contains("/")) {
             errors.add("test_id must not contain '/'");
         }
+        if (".".equals(value) || "..".equals(value)) {
+            errors.add("test_id must not be '.' or '..'");
+        }
     }
 
     private static void validateIdentifier(String field, String value, List<String> errors) {

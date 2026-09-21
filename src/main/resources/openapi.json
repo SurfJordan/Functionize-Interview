@@ -165,8 +165,8 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 255,
-            "pattern": "^[^/]+$",
-            "description": "Globally unique test identifier; forward slashes are not accepted because the identifier is used as one URL path segment.",
+            "pattern": "^(?!\\.{1,2}$)[^/]+$",
+            "description": "Globally unique test identifier; '/', '.' and '..' are not accepted because the identifier is used as one URL path segment.",
             "example": "checkout_flow_happy_path"
           },
           "run_id": {

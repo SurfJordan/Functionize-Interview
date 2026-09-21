@@ -65,7 +65,7 @@ curl --fail-with-body \
 ```
 
 A new event returns `201`; an identical replay returns `200`; reusing a `run_id` for different data returns `409`.
-Because `test_id` is also used as one URL path segment, it must not contain `/`.
+Because `test_id` is also used as one URL path segment, it must not contain `/` or equal `.` or `..`.
 
 Get the current classification:
 

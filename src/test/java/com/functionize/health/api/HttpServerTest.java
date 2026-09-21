@@ -115,13 +115,18 @@ class HttpServerTest {
     }
 
     @Test
-    void encodesTheTestIdInTheLocationHeader() throws Exception {
-        var event = eventJson("run-location", "passed", 100).replace("example", "checkout flow");
+    void acceptedTestIdsRoundTripThroughTheLocationHeader() throws Exception {
+        var testIds = List.of("checkout flow", "a+b", "100%", "snow_雪");
+        for (var index = 0; index < testIds.size(); index++) {
+            var testId = testIds.get(index);
+            var event = eventJson("run-location-" + index, "passed", 100).replace("example", testId);
 
-        var response = post(event);
+            var response = post(event);
 
-        assertEquals(201, response.statusCode());
-        assertEquals("/tests/checkout%20flow", response.headers().firstValue("Location").orElseThrow());
+            assertEquals(201, response.statusCode());
+            var location = response.headers().firstValue("Location").orElseThrow();
+            assertEquals(200, get(location).statusCode(), testId);
+        }
     }
 
     @Test
@@ -136,6 +141,31 @@ class HttpServerTest {
     }
 
     @Test
+    void rejectsEmptyAndMalformedJsonBodies() throws Exception {
+        var empty = post("");
+        var malformed = post("{not-json}");
+
+        assertEquals(400, empty.statusCode());
+        assertEquals(400, malformed.statusCode());
+        assertTrue(empty.body().contains("\"error\""), empty.body());
+        assertTrue(malformed.body().contains("\"error\""), malformed.body());
+    }
+
+    @Test
+    void enforcesContentTypeAndRequestSizeLimits() throws Exception {
+        var event = eventJson("run-protocol", "passed", 100);
+        var missingContentType = post(event, null);
+        var wrongContentType = post(event, "text/plain");
+        var oversized = post("{\"padding\":\"" + "x".repeat(64 * 1024) + "\"}");
+
+        assertEquals(400, missingContentType.statusCode());
+        assertEquals(400, wrongContentType.statusCode());
+        assertTrue(missingContentType.body().contains("\"code\":\"invalid_request\""));
+        assertTrue(wrongContentType.body().contains("\"code\":\"invalid_request\""));
+        assertEquals(413, oversized.statusCode());
+    }
+
+    @Test
     void rejectsNullEventBodiesAsValidationErrors() throws Exception {
         var response = post("null");
 
@@ -146,13 +176,29 @@ class HttpServerTest {
 
     @Test
     void rejectsTestIdsThatCannotRoundTripThroughTheClassificationRoute() throws Exception {
-        var event = eventJson("run-path-separator", "passed", 100).replace("example", "folder/test");
+        var invalidTestIds = List.of("folder/test", ".", "..");
+        for (var index = 0; index < invalidTestIds.size(); index++) {
+            var event = eventJson("run-invalid-location-" + index, "passed", 100)
+                    .replace("example", invalidTestIds.get(index));
 
-        var response = post(event);
+            var response = post(event);
 
-        assertEquals(400, response.statusCode());
-        assertTrue(response.body().contains("\"code\":\"validation_error\""), response.body());
-        assertTrue(response.body().contains("test_id must not contain '/'"), response.body());
+            assertEquals(400, response.statusCode());
+            assertTrue(response.body().contains("\"code\":\"validation_error\""), response.body());
+        }
+    }
+
+    @Test
+    void returnsInsufficientDataForATestWithOnlySkippedRuns() throws Exception {
+        assertEquals(201, post(eventJson("run-skipped", "skipped", 100)).statusCode());
+
+        var response = get("/tests/example");
+        var health = new ObjectMapper().readTree(response.body());
+
+        assertEquals(200, response.statusCode());
+        assertEquals("insufficient_data", health.path("classification").asText());
+        assertEquals("none", health.path("failure_mode").asText());
+        assertEquals(0, health.path("evidence").path("window_size").asInt());
     }
 
     @Test
@@ -195,11 +241,16 @@ class HttpServerTest {
     }
 
     private HttpResponse<String> post(String body) throws Exception {
+        return post(body, "application/json");
+    }
+
+    private HttpResponse<String> post(String body, String contentType) throws Exception {
         var request = HttpRequest.newBuilder(URI.create(baseUrl + "/events"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build();
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+        if (contentType != null) {
+            request.header("Content-Type", contentType);
+        }
+        return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> get(String path) throws Exception {
