@@ -1,0 +1,414 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Functionize Test Health API",
+    "version": "1.0.0",
+    "description": "Ingest automated-test executions and retrieve the current health classification for a test."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Test health"
+    }
+  ],
+  "paths": {
+    "/events": {
+      "post": {
+        "operationId": "ingestExecutionEvent",
+        "summary": "Ingest a test execution",
+        "description": "Creates an execution event or accepts an identical retry. A run ID cannot be reused for different event data.",
+        "tags": [
+          "Test health"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Event created",
+            "headers": {
+              "Location": {
+                "description": "Path to the test's current classification",
+                "schema": {
+                  "type": "string",
+                  "example": "/tests/checkout_flow_happy_path"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Identical event already exists",
+            "headers": {
+              "Location": {
+                "description": "Path to the test's current classification",
+                "schema": {
+                  "type": "string",
+                  "example": "/tests/checkout_flow_happy_path"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "description": "The run ID already exists with different event data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tests/{test_id}": {
+      "get": {
+        "operationId": "getTestHealth",
+        "summary": "Get the current test classification",
+        "description": "Classifies the latest decisive executions for a test and returns the evidence behind the result.",
+        "tags": [
+          "Test health"
+        ],
+        "parameters": [
+          {
+            "name": "test_id",
+            "in": "path",
+            "required": true,
+            "description": "Globally unique test identifier",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            },
+            "example": "checkout_flow_happy_path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current classification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestHealthResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No events exist for the test",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ExecutionEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "test_id",
+          "run_id",
+          "status",
+          "duration_ms",
+          "started_at"
+        ],
+        "properties": {
+          "test_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "example": "checkout_flow_happy_path"
+          },
+          "run_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "example": "run_9281"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "skipped",
+              "errored"
+            ]
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "example": 4230
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-12T14:02:11Z"
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 16384,
+            "example": "Expected submit button to be visible"
+          }
+        }
+      },
+      "IngestResponse": {
+        "type": "object",
+        "required": [
+          "run_id",
+          "test_id",
+          "result"
+        ],
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "example": "run_9281"
+          },
+          "test_id": {
+            "type": "string",
+            "example": "checkout_flow_happy_path"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "created",
+              "duplicate"
+            ]
+          }
+        }
+      },
+      "TestHealthResponse": {
+        "type": "object",
+        "required": [
+          "test_id",
+          "classification",
+          "failure_mode",
+          "confidence",
+          "reasoning",
+          "evidence"
+        ],
+        "properties": {
+          "test_id": {
+            "type": "string",
+            "example": "checkout_flow_happy_path"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "flaky",
+              "broken",
+              "insufficient_data"
+            ]
+          },
+          "failure_mode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "assertion",
+              "execution",
+              "mixed"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 1,
+            "example": 0.626
+          },
+          "reasoning": {
+            "type": "string",
+            "example": "Non-passing outcomes: 6 of 20 decisive runs (4 failed, 2 errored)."
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/ClassificationEvidence"
+          }
+        }
+      },
+      "ClassificationEvidence": {
+        "type": "object",
+        "required": [
+          "window_size",
+          "passed",
+          "failed",
+          "errored",
+          "non_pass_rate",
+          "consecutive_non_passes",
+          "wilson_interval"
+        ],
+        "properties": {
+          "window_size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 20
+          },
+          "passed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errored": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "non_pass_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "consecutive_non_passes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "wilson_interval": {
+            "$ref": "#/components/schemas/WilsonInterval"
+          }
+        }
+      },
+      "WilsonInterval": {
+        "type": "object",
+        "required": [
+          "lower",
+          "upper"
+        ],
+        "properties": {
+          "lower": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "upper": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorResponse"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "details"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "validation_error"
+          },
+          "message": {
+            "type": "string",
+            "example": "Event validation failed"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "duration_ms must be nonnegative"
+            ]
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request is invalid",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "Persistent storage is temporarily unavailable",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "An unexpected server error occurred",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    }
+  }
+}

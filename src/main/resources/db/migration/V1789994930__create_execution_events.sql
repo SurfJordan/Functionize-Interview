@@ -11,4 +11,3 @@ CREATE TABLE execution_events (
 CREATE INDEX execution_events_test_history_idx
     ON execution_events (test_id, started_at DESC, run_id DESC)
     WHERE status <> 'skipped';
-

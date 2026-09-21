@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Build and test
+        run: ./gradlew build --no-daemon
+
+      - name: Verify no tests were skipped
+        shell: bash
+        run: |
+          if grep -R -E 'skipped="[1-9][0-9]*"' build/test-results/test; then
+            echo "At least one test was skipped"
+            exit 1
+          fi
+

@@ -3,6 +3,7 @@ package com.functionize.health.api;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.functionize.health.classification.TestClassifier;
 import com.functionize.health.event.EventRepository;
 import com.functionize.health.event.EventService;
@@ -50,6 +51,26 @@ class HttpServerTest {
         assertEquals(200, health.statusCode());
         assertTrue(health.body().contains("\"classification\":\"insufficient_data\""));
         assertTrue(health.body().contains("\"failure_mode\":\"none\""));
+    }
+
+    @Test
+    void servesInteractiveApiDocumentationFromTheRootShortcut() throws Exception {
+        var root = get("/");
+        var specification = get("/openapi.json");
+        var documentation = get("/docs");
+
+        assertEquals(302, root.statusCode());
+        assertEquals("/docs", root.headers().firstValue("Location").orElseThrow());
+        assertEquals(200, specification.statusCode());
+        assertTrue(specification.headers().firstValue("Content-Type").orElseThrow().startsWith("application/json"));
+        var openApi = new ObjectMapper().readTree(specification.body());
+        assertEquals("3.1.0", openApi.path("openapi").asText());
+        assertTrue(openApi.at("/paths/~1events/post/responses/201").isObject());
+        assertTrue(openApi.at("/paths/~1tests~1{test_id}/get/responses/200").isObject());
+        assertEquals(200, documentation.statusCode());
+        assertTrue(documentation.headers().firstValue("Content-Type").orElseThrow().startsWith("text/html"));
+        assertTrue(documentation.body().contains("/openapi.json?v=default"));
+        assertEquals(200, get("/webjars/swagger-ui/5.31.2/swagger-ui.css").statusCode());
     }
 
     @Test

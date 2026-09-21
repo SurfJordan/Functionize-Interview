@@ -32,6 +32,8 @@ The service listens on `http://localhost:8080`. Configuration can be overridden 
 | `DATABASE_USER` | `functionize` |
 | `DATABASE_PASSWORD` | `functionize` |
 
+Open [`http://localhost:8080`](http://localhost:8080) to go straight to the interactive Swagger UI. The underlying OpenAPI 3.1 contract is available at [`/openapi.json`](http://localhost:8080/openapi.json).
+
 Stop and remove the local database with `docker compose down -v` when its data is no longer needed.
 
 ## Load the sample data
@@ -101,6 +103,8 @@ Example response:
 ```
 
 The suite covers classification boundaries, out-of-order/recent history behavior, confidence, HTTP contracts, duplicate ingestion, the JSONL importer, and the supplied dataset. PostgreSQL repository tests use Testcontainers and are skipped when Docker is unavailable.
+
+GitHub Actions runs the full build on Java 21 and fails if any test is skipped, ensuring the PostgreSQL integration tests execute in CI.
 
 The sample-data acceptance test verifies 5,360 records across 100 tests and, for the documented policy, 62 healthy, 24 flaky, and 14 broken classifications.
 

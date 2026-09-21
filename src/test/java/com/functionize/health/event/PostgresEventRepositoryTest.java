@@ -1,8 +1,14 @@
 package com.functionize.health.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,6 +63,44 @@ class PostgresEventRepositoryTest {
         var history = repository.latestDecisiveEvents("test-a", 20);
 
         assertEquals(java.util.List.of("new", "old"), history.stream().map(ExecutionEvent::runId).toList());
+    }
+
+    @Test
+    void acceptsExactlyOneInsertDuringConcurrentIdenticalRetries() throws Exception {
+        var attempts = 12;
+        var event = event("test-a", "concurrent-run", Status.PASSED, "2026-01-01T00:00:00Z");
+        var ready = new CountDownLatch(attempts);
+        var start = new CountDownLatch(1);
+
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var futures = new ArrayList<Future<EventRepository.InsertResult>>();
+            for (var attempt = 0; attempt < attempts; attempt++) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Concurrent insert start timed out");
+                    }
+                    return repository.insert(event);
+                }));
+            }
+
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+            var results = futures.stream().map(future -> get(future, 10, TimeUnit.SECONDS)).toList();
+
+            assertEquals(1, results.stream().filter(result -> result == EventRepository.InsertResult.CREATED).count());
+            assertEquals(
+                    attempts - 1,
+                    results.stream().filter(result -> result == EventRepository.InsertResult.IDENTICAL).count());
+        }
+    }
+
+    private static <T> T get(Future<T> future, long timeout, TimeUnit unit) {
+        try {
+            return future.get(timeout, unit);
+        } catch (Exception exception) {
+            throw new AssertionError("Concurrent operation failed", exception);
+        }
     }
 
     private static ExecutionEvent event(String testId, String runId, Status status, String startedAt) {

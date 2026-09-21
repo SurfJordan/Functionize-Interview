@@ -17,6 +17,7 @@ java {
 
 dependencies {
     implementation("io.javalin:javalin-bundle:7.2.3")
+    implementation("io.javalin.community.openapi:javalin-swagger-plugin:7.2.3")
     implementation("com.zaxxer:HikariCP:7.0.2")
     implementation("org.postgresql:postgresql:42.7.8")
     implementation("org.flywaydb:flyway-core:11.13.2")
