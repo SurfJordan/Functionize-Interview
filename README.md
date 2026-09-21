@@ -72,28 +72,74 @@ Get the current classification:
 curl --fail-with-body http://localhost:8080/tests/checkout_flow_happy_path
 ```
 
-Example response:
+After only that first event, the expected response is `insufficient_data`:
 
 ```json
 {
   "test_id": "checkout_flow_happy_path",
-  "classification": "flaky",
-  "failure_mode": "mixed",
-  "confidence": 0.626,
-  "reasoning": "Non-passing outcomes: 6 of 20 decisive runs (4 failed, 2 errored).",
+  "classification": "insufficient_data",
+  "failure_mode": "assertion",
+  "confidence": 0.0,
+  "reasoning": "1 decisive run available; at least 5 are required.",
   "evidence": {
-    "window_size": 20,
-    "passed": 14,
-    "failed": 4,
-    "errored": 2,
-    "non_pass_rate": 0.3,
+    "window_size": 1,
+    "passed": 0,
+    "failed": 1,
+    "errored": 0,
+    "non_pass_rate": 1.0,
     "consecutive_non_passes": 1,
-    "wilson_interval": { "lower": 0.145, "upper": 0.519 }
+    "wilson_interval": { "lower": 0.207, "upper": 1.0 }
   }
 }
 ```
 
 `failure_mode` is separate from health: `failed` executions indicate assertion failures and `errored` executions indicate execution failures. `skipped` executions are stored but do not affect classification.
+
+## Exercise the classification policy
+
+The service waits for five decisive (`passed`, `failed`, or `errored`) runs before assigning a health classification. A single failed event therefore returns `insufficient_data`, not `flaky`; there is not enough evidence to distinguish a persistent failure from a transient one.
+
+Once five runs exist, one failure among four passes is `flaky`: its 20% non-pass rate is above the 10% healthy threshold and below the 80% broken threshold. The failure still produces `failure_mode: assertion` because failure cause and health are intentionally independent.
+
+This example uses a timestamped test ID, so it can be run repeatedly without existing database records changing the result:
+
+```bash
+DEMO_ID="readme-flaky-$(date +%s)"
+
+post_demo_event() {
+  curl --silent --show-error --fail-with-body \
+    -H 'Content-Type: application/json' \
+    -d "{
+      \"test_id\": \"$DEMO_ID\",
+      \"run_id\": \"$DEMO_ID-$1\",
+      \"status\": \"$2\",
+      \"duration_ms\": 100,
+      \"started_at\": \"2026-04-12T14:02:1$1Z\"
+    }" \
+    http://localhost:8080/events
+}
+
+post_demo_event 1 failed
+curl --silent --show-error --fail-with-body "http://localhost:8080/tests/$DEMO_ID"
+# classification: insufficient_data; 1 decisive run
+
+for RUN in 2 3 4 5; do
+  post_demo_event "$RUN" passed
+done
+curl --silent --show-error --fail-with-body "http://localhost:8080/tests/$DEMO_ID"
+# classification: flaky; 1 of 5 decisive runs is non-passing
+```
+
+Use these minimal histories to exercise each result:
+
+| Desired classification | Decisive history | Why |
+| --- | --- | --- |
+| `insufficient_data` | Any 0–4 decisive runs | At least 5 are required |
+| `healthy` | 5 passes | 0% non-passing is at most 10% |
+| `flaky` | 4 passes and 1 failure | 20% is between the healthy and broken thresholds |
+| `broken` | 1 pass and 4 failures | 80% non-passing meets the broken threshold |
+
+The classifier evaluates only the latest 20 decisive runs, ordered by `started_at`. Five consecutive recent non-passing runs also produce `broken`, even when older passes make the overall rate lower.
 
 ## Tests
 

@@ -20,6 +20,14 @@ class TestClassifierTest {
         assertEquals(Classification.INSUFFICIENT_DATA, result.classification());
         assertEquals(0.0, result.confidence());
         assertEquals(3, result.evidence().windowSize());
+        assertEquals("3 decisive runs available; at least 5 are required.", result.reasoning());
+    }
+
+    @Test
+    void usesSingularReasoningForOneDecisiveRun() {
+        var result = classifier.classify(events(Status.FAILED));
+
+        assertEquals("1 decisive run available; at least 5 are required.", result.reasoning());
     }
 
     @Test
@@ -115,4 +123,3 @@ class TestClassifierTest {
         return events;
     }
 }
-

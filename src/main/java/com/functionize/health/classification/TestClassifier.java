@@ -65,10 +65,11 @@ public final class TestClassifier {
 
     private static String reasoning(Classification classification, ClassificationResult.Evidence evidence) {
         if (classification == Classification.INSUFFICIENT_DATA) {
+            var runLabel = evidence.windowSize() == 1 ? "run" : "runs";
             return String.format(
                     Locale.ROOT,
-                    "%d decisive runs available; at least %d are required.",
-                    evidence.windowSize(), MINIMUM_EVIDENCE);
+                    "%d decisive %s available; at least %d are required.",
+                    evidence.windowSize(), runLabel, MINIMUM_EVIDENCE);
         }
         if (classification == Classification.BROKEN && evidence.consecutiveNonPasses() >= BROKEN_STREAK) {
             return String.format(

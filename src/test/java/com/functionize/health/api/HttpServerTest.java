@@ -54,6 +54,25 @@ class HttpServerTest {
     }
 
     @Test
+    void oneFailureBecomesFlakyOnlyAfterEnoughPassingEvidence() throws Exception {
+        assertEquals(201, post(eventJson("run-1", "failed", 100)).statusCode());
+
+        var insufficient = new ObjectMapper().readTree(get("/tests/example").body());
+        assertEquals("insufficient_data", insufficient.path("classification").asText());
+        assertEquals("1 decisive run available; at least 5 are required.", insufficient.path("reasoning").asText());
+
+        for (var run = 2; run <= 5; run++) {
+            assertEquals(201, post(eventJson("run-" + run, "passed", 100)).statusCode());
+        }
+
+        var flaky = new ObjectMapper().readTree(get("/tests/example").body());
+        assertEquals("flaky", flaky.path("classification").asText());
+        assertEquals("assertion", flaky.path("failure_mode").asText());
+        assertEquals(5, flaky.path("evidence").path("window_size").asInt());
+        assertEquals(0.2, flaky.path("evidence").path("non_pass_rate").asDouble());
+    }
+
+    @Test
     void servesInteractiveApiDocumentationFromTheRootShortcut() throws Exception {
         var root = get("/");
         var specification = get("/openapi.json");
