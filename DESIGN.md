@@ -4,7 +4,7 @@
 
 I chose Java 21 because it is explicitly supported by the task and is the JVM language I can ship most confidently. Javalin 7 keeps the HTTP layer small while using mature Jetty and virtual threads. PostgreSQL is a deliberate production-facing choice: durable storage, atomic uniqueness, and indexed chronological reads matter more here than avoiding local setup. Docker Compose keeps that setup to one command; HikariCP and Flyway handle pooling and schema evolution.
 
-The code is split into HTTP, event, classification, and persistence concerns. The classifier is a pure function and the repository is an interface, so policy tests do not require a server or database. Reads fetch at most 20 indexed rows, avoiding classification work that grows with lifetime history.
+The service follows a Controller–Service–Repository structure, with server configuration kept separate from route handling. Dependencies use constructor injection and are assembled explicitly in `Application`; a DI container would add ceremony to this small, static object graph. The classifier is a pure function and the repository is an interface, so policy tests do not require a server or database. Reads fetch at most 20 indexed rows, avoiding classification work that grows with lifetime history.
 
 ## Classification
 

@@ -20,7 +20,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class HttpApiTest {
+class HttpServerTest {
     private final HttpClient client = HttpClient.newHttpClient();
     private Javalin app;
     private String baseUrl;
@@ -28,7 +28,7 @@ class HttpApiTest {
     @BeforeEach
     void startServer() {
         var service = new EventService(new InMemoryEventRepository(), new EventValidator(), new TestClassifier());
-        app = HttpApi.create(service);
+        app = HttpServer.create(new EventController(service));
         app.start(0);
         baseUrl = "http://localhost:" + app.port();
     }
@@ -122,7 +122,8 @@ class HttpApiTest {
                 throw new RepositoryException("sensitive database detail");
             }
         };
-        app = HttpApi.create(new EventService(failingRepository, new EventValidator(), new TestClassifier()));
+        var service = new EventService(failingRepository, new EventValidator(), new TestClassifier());
+        app = HttpServer.create(new EventController(service));
         app.start(0);
         baseUrl = "http://localhost:" + app.port();
 

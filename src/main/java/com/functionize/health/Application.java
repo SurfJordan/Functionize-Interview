@@ -1,6 +1,7 @@
 package com.functionize.health;
 
-import com.functionize.health.api.HttpApi;
+import com.functionize.health.api.EventController;
+import com.functionize.health.api.HttpServer;
 import com.functionize.health.classification.TestClassifier;
 import com.functionize.health.db.Database;
 import com.functionize.health.event.EventService;
@@ -27,7 +28,8 @@ public final class Application {
                 return;
             }
 
-            var app = HttpApi.create(service, database::close);
+            var controller = new EventController(service);
+            var app = HttpServer.create(controller, database::close);
             app.start(config.port());
         } catch (RuntimeException exception) {
             database.close();
